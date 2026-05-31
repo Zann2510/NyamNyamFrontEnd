@@ -1,53 +1,97 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCart } from '@/contexts/CartContext';
 import api from '@/lib/api';
 import { formatRupiah } from '@/lib/utils';
 import toast from 'react-hot-toast';
-import Link from 'next/link';
-import {
-  MapPin,
-  CreditCard,
-  ShoppingBag,
-  Trash2,
-  Minus,
-  Plus,
-  ArrowLeft,
-  Loader2,
-} from 'lucide-react';
+import Image from 'next/image';
 
-// Metode pembayaran yang tersedia
-const PAYMENT_METHODS = [
-  { value: 'CASH', label: 'Tunai (COD)' },
-  { value: 'QRIS', label: 'QRIS' },
-  { value: 'CARD', label: 'Kartu Debit/Kredit' },
-] as const;   
-
-type PaymentMethod = (typeof PAYMENT_METHODS)[number]['value'];
+// Data dummy bank untuk metode debit/transfer
+const banks = [
+  { name: 'BCA', accountNumber: '1234567890', accountName: 'NyamNyam Food' },
+  { name: 'Mandiri', accountNumber: '9876543210', accountName: 'NyamNyam Food' },
+  { name: 'BNI', accountNumber: '5678901234', accountName: 'NyamNyam Food' },
+  { name: 'BRI', accountNumber: '4321098765', accountName: 'NyamNyam Food' },
+];
 
 export default function CheckoutPage() {
   const router = useRouter();
   const { user } = useAuth();
-  const { items, getTotal, clearCart, updateQuantity, removeItem } = useCart();
-
+  const { items, getTotal, clearCart } = useCart();
   const [address, setAddress] = useState('');
   const [notes, setNotes] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('OVO');
+  const [paymentMethod, setPaymentMethod] = useState('CASH');
+  const [selectedBank, setSelectedBank] = useState(banks[0]);
+  const [paymentProofUrl, setPaymentProofUrl] = useState('');
+  const [uploading, setUploading] = useState(false);
+  const [timeLeft, setTimeLeft] = useState(120); // 2 menit dalam detik
+  const [timerActive, setTimerActive] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // Kalkulasi harga - pastikan semua angka valid
-  const subtotal = items.reduce((sum, item) => {
-    const price = Number(item.price) || 0;
-    const qty = Number(item.quantity) || 0;
-    return sum + price * qty;
-  }, 0);
-  const deliveryFee = 12_000;
-  const taxRate = 0.11;
-  const tax = Math.round(subtotal * taxRate);
+  const subtotal = getTotal();
+  const deliveryFee = 12000;
+  const tax = subtotal * 0.11;
   const total = subtotal + deliveryFee + tax;
+
+  // Timer effect
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (timerActive && timeLeft > 0) {
+      interval = setInterval(() => {
+        setTimeLeft((prev) => prev - 1);
+      }, 1000);
+    } else if (timeLeft === 0 && timerActive) {
+      toast.error('Waktu upload bukti habis! Silakan refresh halaman.');
+      setTimerActive(false);
+    }
+    return () => clearInterval(interval);
+  }, [timerActive, timeLeft]);
+
+  // Mulai timer ketika metode pembayaran bukan COD
+  useEffect(() => {
+    if (paymentMethod !== 'CASH') {
+      setTimerActive(true);
+      setTimeLeft(120);
+    } else {
+      setTimerActive(false);
+      setTimeLeft(0);
+      setPaymentProofUrl(''); // tidak perlu bukti untuk COD
+    }
+  }, [paymentMethod]);
+
+  const handleUploadProof = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      toast.error('Hanya file gambar yang diizinkan');
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error('Ukuran file maksimal 2MB');
+      return;
+    }
+
+    setUploading(true);
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const res = await api.post('/upload/image', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      const imageUrl = res.data.url;
+      setPaymentProofUrl(imageUrl);
+      toast.success('Bukti pembayaran berhasil diupload');
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Gagal upload bukti');
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -55,29 +99,41 @@ export default function CheckoutPage() {
       toast.error('Alamat pengiriman wajib diisi');
       return;
     }
-    if (!user) {
-      toast.error('Silakan login terlebih dahulu');
-      router.push('/auth/login');
-      return;
-    }
     if (items.length === 0) {
       toast.error('Keranjang kosong');
+      router.push('/');
       return;
+    }
+    if (!user) {
+      toast.error('Silakan login terlebih dahulu');
+      router.push('/login');
+      return;
+    }
+
+    // Validasi untuk metode non-COD
+    if (paymentMethod !== 'CASH') {
+      if (!paymentProofUrl) {
+        toast.error('Silakan upload bukti pembayaran terlebih dahulu');
+        return;
+      }
+      if (timeLeft === 0) {
+        toast.error('Waktu upload telah habis, silakan refresh dan coba lagi');
+        return;
+      }
     }
 
     setLoading(true);
     try {
-      await api.post('/orders', {
-        items: items.map((i) => ({
-          productId: i.productId,
-          quantity: Number(i.quantity),
-        })),
-        deliveryAddress: address.trim(),
-        paymentMethod,
-      });
+      const orderData = {
+        items: items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
+        deliveryAddress: address,
+        paymentMethod: paymentMethod,
+        paymentProofUrl: paymentMethod !== 'CASH' ? paymentProofUrl : undefined,
+      };
+      await api.post('/orders', orderData);
       clearCart();
       toast.success('Pesanan berhasil dibuat!');
-      router.push('/main/orders');
+      router.push('/orders');
     } catch (err: any) {
       toast.error(err.response?.data?.message || 'Gagal membuat pesanan');
     } finally {
@@ -85,246 +141,153 @@ export default function CheckoutPage() {
     }
   };
 
-  // Kalau keranjang kosong
-  if (items.length === 0) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <ShoppingBag className="w-16 h-16 text-gray-300 mx-auto mb-3" />
-          <h2 className="text-lg font-semibold text-gray-700">Keranjang Kosong</h2>
-          <p className="text-gray-400 text-sm mt-1">Tambahkan produk terlebih dahulu</p>
-          <button
-            onClick={() => router.push('/main/products')}
-            className="inline-block mt-4 bg-orange-500 text-white px-6 py-2.5 rounded-xl text-sm font-semibold hover:bg-orange-600 transition-colors"
-          >
-            Lihat Menu
-          </button>
-        </div>
-      </div>
-    );
-  }
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-6xl mx-auto px-6 py-8">
+    <div className="min-h-screen bg-gray-50 pb-28">
+      <div className="sticky top-0 bg-white p-4 border-b shadow-sm z-10">
+        <h1 className="text-xl font-bold text-center">Checkout</h1>
+      </div>
 
-        {/* ── Header ──────────────────────────────────────── */}
-        <div className="flex items-center gap-3 mb-8">
-          <Link
-            href="/main/cart"
-            className="p-2 rounded-lg hover:bg-gray-200 transition-colors"
-            aria-label="Kembali ke keranjang"
-          >
-            <ArrowLeft size={20} className="text-gray-600" />
-          </Link>
-          <h1 className="text-2xl font-bold text-gray-900">Checkout</h1>
+      <form onSubmit={handleSubmit} className="p-4 space-y-5">
+        {/* Alamat pengiriman */}
+        <div className="bg-white p-4 rounded-xl shadow-sm">
+          <label className="font-semibold block mb-1">
+            Alamat Pengiriman <span className="text-red-500">*</span>
+          </label>
+          <textarea
+            required
+            rows={3}
+            className="w-full border rounded-lg p-2"
+            placeholder="Jl. Sudirman No. 45, Jakarta Selatan"
+            value={address}
+            onChange={(e) => setAddress(e.target.value)}
+          />
         </div>
 
-        {/* ── Layout Dua Kolom ─────────────────────────── */}
-        <form onSubmit={handleSubmit}>
-          <div className="grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-6">
+        {/* Metode Pembayaran */}
+        <div className="bg-white p-4 rounded-xl shadow-sm">
+          <label className="font-semibold block mb-2">Metode Pembayaran</label>
+          <div className="space-y-2">
+            {[
+              { value: 'CASH', label: 'COD (Cash on Delivery)' },
+              { value: 'QRIS', label: 'QRIS (OVO/GoPay/Dana)' },
+              { value: 'CARD', label: 'Transfer Bank / Debit' },
+            ].map((method) => (
+              <label key={method.value} className="flex items-center gap-2">
+                <input
+                  type="radio"
+                  name="paymentMethod"
+                  value={method.value}
+                  checked={paymentMethod === method.value}
+                  onChange={(e) => setPaymentMethod(e.target.value)}
+                  className="text-orange-500"
+                />
+                <span>{method.label}</span>
+              </label>
+            ))}
+          </div>
+        </div>
 
-            {/* ── Kolom Kiri ──────────────────────────────── */}
-            <div className="space-y-5">
-
-              {/* Alamat Pengiriman */}
-              <div className="bg-white rounded-2xl p-6 shadow-sm">
-                <div className="flex items-center gap-2 mb-4">
-                  <MapPin className="w-5 h-5 text-orange-500" />
-                  <h2 className="text-base font-bold text-gray-900">Alamat Pengiriman</h2>
-                </div>
-
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                      Alamat Lengkap <span className="text-red-500">*</span>
-                    </label>
-                    <textarea
-                      required
-                      rows={3}
-                      value={address}
-                      onChange={(e) => setAddress(e.target.value)}
-                      placeholder="Contoh: Jl. Sudirman No. 45, Jakarta Selatan (Lobby Utama)"
-                      className="w-full border border-gray-200 rounded-xl p-3 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent resize-none transition"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                      Catatan Tambahan{' '}
-                      <span className="text-gray-400 font-normal">(Opsional)</span>
-                    </label>
-                    <textarea
-                      rows={2}
-                      value={notes}
-                      onChange={(e) => setNotes(e.target.value)}
-                      placeholder="Contoh: Jangan terlalu pedas, kuah dipisah"
-                      className="w-full border border-gray-200 rounded-xl p-3 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent resize-none transition"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Metode Pembayaran */}
-              <div className="bg-white rounded-2xl p-6 shadow-sm">
-                <div className="flex items-center gap-2 mb-4">
-                  <CreditCard className="w-5 h-5 text-orange-500" />
-                  <h2 className="text-base font-bold text-gray-900">Metode Pembayaran</h2>
-                </div>
-
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                  {PAYMENT_METHODS.map((method) => (
-                    <label
-                      key={method.value}
-                      className={`flex items-center gap-2.5 px-4 py-3 rounded-xl border-2 cursor-pointer transition-all ${
-                        paymentMethod === method.value
-                          ? 'border-orange-500 bg-orange-50'
-                          : 'border-gray-200 hover:border-gray-300 bg-white'
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name="payment"
-                        value={method.value}
-                        checked={paymentMethod === method.value}
-                        onChange={() => setPaymentMethod(method.value)}
-                        className="accent-orange-500"
-                      />
-                      <span
-                        className={`text-sm font-medium ${
-                          paymentMethod === method.value
-                            ? 'text-orange-700'
-                            : 'text-gray-700'
-                        }`}
-                      >
-                        {method.label}
-                      </span>
-                    </label>
-                  ))}
-                </div>
-              </div>
+        {/* Tampilan khusus berdasarkan metode */}
+        {paymentMethod === 'QRIS' && (
+          <div className="bg-white p-4 rounded-xl shadow-sm text-center">
+            <p className="font-semibold mb-2">Scan QRIS di bawah ini untuk membayar</p>
+            <div className="flex justify-center">
+              <img
+                src="/images/qris.png" // ganti dengan file gambar QRIS Anda
+                alt="QRIS Code"
+                className="w-48 h-48 object-contain border rounded-lg"
+              />
             </div>
+            <p className="text-xs text-gray-500 mt-2">Setelah scan, upload bukti pembayaran di bawah</p>
+          </div>
+        )}
 
-            {/* ── Kolom Kanan: Ringkasan Pesanan ──────────── */}
-            <div className="bg-white rounded-2xl p-6 shadow-sm h-fit sticky top-24">
-              <h2 className="text-base font-bold text-gray-900 mb-4">
-                Ringkasan Pesanan
-              </h2>
-
-              {/* Daftar item */}
-              <div className="space-y-3 mb-5">
-                {items.map((item) => {
-                  const price = Number(item.price) || 0;
-                  const qty = Number(item.quantity) || 0;
-
-                  return (
-                    <div key={item.productId} className="flex items-center gap-3">
-                      <img
-                        src={item.image}
-                        alt={item.name}
-                        className="w-14 h-14 object-cover rounded-xl shrink-0"
-                      />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-gray-800 line-clamp-1">
-                          {item.name}
-                        </p>
-                        <p className="text-xs text-gray-400">
-                          {formatRupiah(price)}
-                        </p>
-                      </div>
-
-                      {/* Quantity controls */}
-                      <div className="flex items-center gap-1.5">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            updateQuantity(item.productId, qty - 1)
-                          }
-                          className="w-6 h-6 border border-gray-200 rounded-full flex items-center justify-center hover:bg-gray-50 transition-colors"
-                        >
-                          <Minus size={11} />
-                        </button>
-                        <span className="w-5 text-center text-sm font-semibold text-gray-800">
-                          {qty}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            updateQuantity(item.productId, qty + 1)
-                          }
-                          className="w-6 h-6 border border-gray-200 rounded-full flex items-center justify-center hover:bg-gray-50 transition-colors"
-                        >
-                          <Plus size={11} />
-                        </button>
-                      </div>
-
-                      {/* Hapus */}
-                      <button
-                        type="button"
-                        onClick={() => removeItem(item.productId)}
-                        className="text-red-400 hover:text-red-600 ml-1 transition-colors"
-                        aria-label={`Hapus ${item.name}`}
-                      >
-                        <Trash2 size={15} />
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* Divider */}
-              <div className="border-t border-gray-100 mb-4" />
-
-              {/* Kalkulasi harga */}
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between text-gray-600">
-                  <span>Subtotal</span>
-                  <span>{formatRupiah(subtotal)}</span>
-                </div>
-                <div className="flex justify-between text-gray-600">
-                  <span>Biaya Pengiriman</span>
-                  <span>{formatRupiah(deliveryFee)}</span>
-                </div>
-                <div className="flex justify-between text-gray-600">
-                  <span>Pajak (11%)</span>
-                  <span>{formatRupiah(tax)}</span>
-                </div>
-              </div>
-
-              <div className="border-t border-gray-100 mt-3 pt-3">
-                <div className="flex justify-between items-center">
-                  <span className="font-bold text-gray-900">Total Bayar</span>
-                  <span className="font-extrabold text-gray-900 text-lg">
-                    {formatRupiah(total)}
-                  </span>
-                </div>
-              </div>
-
-              {/* Tombol bayar */}
-              <button
-                type="submit"
-                disabled={loading || !address.trim()}
-                className="w-full mt-5 bg-orange-500 hover:bg-orange-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-bold py-3.5 rounded-xl transition-colors flex items-center justify-center gap-2 text-sm shadow-sm"
-              >
-                {loading ? (
-                  <>
-                    <Loader2 size={16} className="animate-spin" />
-                    Memproses...
-                  </>
-                ) : (
-                  'Bayar Sekarang →'
-                )}
-              </button>
-
-              {!address.trim() && (
-                <p className="text-xs text-gray-400 text-center mt-2">
-                  Isi alamat pengiriman untuk melanjutkan
-                </p>
-              )}
+        {paymentMethod === 'CARD' && (
+          <div className="bg-white p-4 rounded-xl shadow-sm">
+            <p className="font-semibold mb-2">Pilih Bank Tujuan Transfer</p>
+            <select
+              className="w-full border rounded-lg p-2 mb-3"
+              value={selectedBank.name}
+              onChange={(e) => setSelectedBank(banks.find(b => b.name === e.target.value) || banks[0])}
+            >
+              {banks.map((bank) => (
+                <option key={bank.name} value={bank.name}>{bank.name}</option>
+              ))}
+            </select>
+            <div className="bg-gray-50 p-3 rounded-lg">
+              <p className="text-sm">Nomor Rekening: <span className="font-mono font-bold">{selectedBank.accountNumber}</span></p>
+              <p className="text-sm">Atas Nama: {selectedBank.accountName}</p>
+              <p className="text-xs text-gray-500 mt-1">Total yang harus ditransfer: <span className="font-bold">{formatRupiah(Math.round(total))}</span></p>
             </div>
           </div>
-        </form>
-      </div>
+        )}
+
+        {/* Upload Bukti (hanya untuk non-COD) */}
+        {paymentMethod !== 'CASH' && (
+          <div className="bg-white p-4 rounded-xl shadow-sm">
+            <div className="flex justify-between items-center mb-2">
+              <label className="font-semibold">Upload Bukti Pembayaran</label>
+              <span className={`text-sm font-mono ${timeLeft < 30 ? 'text-red-500' : 'text-gray-600'}`}>
+                Sisa waktu: {formatTime(timeLeft)}
+              </span>
+            </div>
+            {paymentProofUrl ? (
+              <div className="relative inline-block">
+                <img src={paymentProofUrl} alt="Bukti" className="h-24 rounded-md" />
+                <button
+                  type="button"
+                  onClick={() => setPaymentProofUrl('')}
+                  className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 text-xs"
+                >
+                  ✕
+                </button>
+              </div>
+            ) : (
+              <label className="cursor-pointer block">
+                <input type="file" accept="image/*" onChange={handleUploadProof} disabled={uploading || timeLeft === 0} className="hidden" />
+                <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center">
+                  {uploading ? 'Mengupload...' : 'Klik untuk upload bukti transfer / screenshot QRIS'}
+                </div>
+              </label>
+            )}
+            {timeLeft === 0 && <p className="text-red-500 text-sm mt-2">Waktu habis! Silakan refresh halaman.</p>}
+          </div>
+        )}
+
+        {/* Ringkasan pesanan */}
+        <div className="bg-white p-4 rounded-xl shadow-sm">
+          <h2 className="font-semibold mb-3">Ringkasan Pesanan</h2>
+          {items.map((item) => (
+            <div key={item.productId} className="flex justify-between text-sm py-1">
+              <span>{item.name} x{item.quantity}</span>
+              <span>{formatRupiah(item.price * item.quantity)}</span>
+            </div>
+          ))}
+          <hr className="my-2" />
+          <div className="flex justify-between"><span>Subtotal</span><span>{formatRupiah(subtotal)}</span></div>
+          <div className="flex justify-between"><span>Biaya Kirim</span><span>{formatRupiah(deliveryFee)}</span></div>
+          <div className="flex justify-between"><span>Pajak (11%)</span><span>{formatRupiah(Math.round(tax))}</span></div>
+          <div className="flex justify-between font-bold text-lg mt-2 pt-2 border-t">
+            <span>Total</span>
+            <span className="text-orange-600">{formatRupiah(Math.round(total))}</span>
+          </div>
+        </div>
+
+        {/* Tombol bayar */}
+        <button
+          type="submit"
+          disabled={loading || (paymentMethod !== 'CASH' && !paymentProofUrl) || (paymentMethod !== 'CASH' && timeLeft === 0)}
+          className="w-full bg-orange-500 text-white py-3 rounded-full font-semibold disabled:opacity-50"
+        >
+          {loading ? 'Memproses...' : 'Bayar Sekarang →'}
+        </button>
+      </form>
     </div>
   );
 }
