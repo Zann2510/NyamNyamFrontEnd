@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCart } from '@/contexts/CartContext';
-import { ShoppingCart, LogOut, ChevronDown, User, ShoppingBag } from 'lucide-react';
+import { ShoppingCart, LogOut, ChevronDown, User, ShoppingBag, Menu, X } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 
 export default function Navbar() {
@@ -12,19 +12,29 @@ export default function Navbar() {
   const { user, logout, isAdmin } = useAuth();
   const { getItemCount } = useCart();
   const [profileOpen, setProfileOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const mobileMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
         setProfileOpen(false);
       }
+      if (mobileMenuRef.current && !mobileMenuRef.current.contains(e.target as Node) && mobileMenuOpen) {
+        setMobileMenuOpen(false);
+      }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+  }, [mobileMenuOpen]);
 
-  // Hanya href statis — tidak boleh ada [param] di sini
+  // Tutup menu saat route berubah
+  useEffect(() => {
+    setMobileMenuOpen(false);
+    setProfileOpen(false);
+  }, [pathname]);
+
   const navLinks: { href: string; label: string }[] = [
     { href: '/main', label: 'Beranda' },
     { href: '/main/products', label: 'Produk' },
@@ -48,8 +58,8 @@ export default function Navbar() {
           <span className="text-xl font-bold text-gray-900">NyamNyam</span>
         </Link>
 
-        {/* Nav Links Tengah */}
-        <div className="flex items-center gap-8">
+        {/* Desktop Nav Links (hidden di mobile) */}
+        <div className="hidden md:flex items-center gap-8">
           {navLinks.map((link) => (
             <Link
               key={link.href}
@@ -65,7 +75,7 @@ export default function Navbar() {
           ))}
         </div>
 
-        {/* Kanan: Cart + Profile */}
+        {/* Kanan: Cart + Profile + Mobile Menu Toggle */}
         <div className="flex items-center gap-3">
           {/* Cart */}
           <Link
@@ -81,9 +91,18 @@ export default function Navbar() {
             )}
           </Link>
 
-          {/* Profile / Auth */}
+          {/* Mobile Menu Button (hanya di mobile) */}
+          <button
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            className="md:hidden p-2 rounded-lg hover:bg-gray-50 transition-colors"
+            aria-label="Menu"
+          >
+            {mobileMenuOpen ? <X size={22} /> : <Menu size={22} />}
+          </button>
+
+          {/* Profile Desktop (hidden di mobile jika menu mobile terbuka) */}
           {user ? (
-            <div className="relative" ref={dropdownRef}>
+            <div className="hidden md:block relative" ref={dropdownRef}>
               <button
                 onClick={() => setProfileOpen(!profileOpen)}
                 className="flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-gray-50 transition-colors"
@@ -102,7 +121,7 @@ export default function Navbar() {
                 />
               </button>
 
-              {/* Dropdown */}
+              {/* Dropdown Desktop */}
               {profileOpen && (
                 <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-xl shadow-lg border border-gray-100 py-1 z-40">
                   <div className="px-3 py-2 border-b border-gray-50">
@@ -151,13 +170,82 @@ export default function Navbar() {
           ) : (
             <Link
               href="/auth/login"
-              className="bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors"
+              className="hidden md:block bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors"
             >
               Login
             </Link>
           )}
         </div>
       </div>
+
+      {/* Mobile Menu Drawer (slide from right) */}
+      {mobileMenuOpen && (
+        <div
+          ref={mobileMenuRef}
+          className="fixed inset-y-0 right-0 w-64 bg-white shadow-xl z-50 transform transition-transform duration-200 ease-out md:hidden"
+          style={{ top: '64px' }}
+        >
+          <div className="flex flex-col p-4 space-y-4">
+            {user ? (
+              <div className="border-b pb-3">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center">
+                    <span className="text-orange-600 font-bold">{user.name.charAt(0)}</span>
+                  </div>
+                  <div>
+                    <p className="font-semibold text-gray-800">{user.name}</p>
+                    <p className="text-xs text-gray-500">{user.email}</p>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <Link
+                href="/auth/login"
+                className="block bg-orange-500 text-white text-center py-2 rounded-lg"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                Login
+              </Link>
+            )}
+            {navLinks.map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                className={`py-2 text-base ${isActive(link.href) ? 'text-orange-500 font-semibold' : 'text-gray-700'}`}
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                {link.label}
+              </Link>
+            ))}
+            {user && (
+              <>
+                <Link
+                  href="/main/orders"
+                  className="py-2 text-base text-gray-700"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  Pesanan Saya
+                </Link>
+                {isAdmin && (
+                  <Link
+                    href="/admin"
+                    className="py-2 text-base text-orange-600"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    Admin Panel
+                  </Link>
+                )}
+                <button
+                  onClick={() => { logout(); setMobileMenuOpen(false); }}
+                  className="py-2 text-base text-red-500 text-left"
+                >
+                  Logout
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </nav>
   );
 }

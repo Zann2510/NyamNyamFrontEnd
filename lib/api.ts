@@ -10,4 +10,6 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+export const getOrderSummary = () => api.get('/orders/summary');
+
 export default api;

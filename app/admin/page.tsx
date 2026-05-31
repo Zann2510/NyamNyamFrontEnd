@@ -3,13 +3,21 @@
 import { useEffect, useState } from 'react';
 import api from '@/lib/api';
 import { formatRupiah } from '@/lib/utils';
-import { Package, ShoppingBag, Tag, DollarSign } from 'lucide-react';
+import { Package, ShoppingBag, Tag, DollarSign, TrendingUp, Calendar, ArrowUp } from 'lucide-react';
 
-interface Stats {
-  totalProducts: number;
+interface Summary {
   totalOrders: number;
-  totalCategories: number;
   totalRevenue: number;
+  todayOrders: number;
+  weeklyRevenue: number;
+  monthlyRevenue: number;
+  topProducts: {
+    id: string;
+    name: string;
+    price: number;
+    image: string;
+    totalSold: number;
+  }[];
 }
 
 interface Order {
@@ -21,38 +29,22 @@ interface Order {
 }
 
 export default function AdminDashboard() {
-  const [stats, setStats] = useState<Stats>({
-    totalProducts: 0,
-    totalOrders: 0,
-    totalCategories: 0,
-    totalRevenue: 0,
-  });
+  const [summary, setSummary] = useState<Summary | null>(null);
   const [recentOrders, setRecentOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [productsRes, ordersRes, categoryRes] = await Promise.all([
-          api.get('/products?limit=1'),
+        // Panggil endpoint summary dan orders/all secara paralel
+        const [summaryRes, ordersRes] = await Promise.all([
+          api.get('/orders/summary'),
           api.get('/orders/all'),
-          api.get('/category'),
         ]);
 
-        const products = Array.isArray(productsRes.data) ? productsRes.data : productsRes.data?.data || [];
+        setSummary(summaryRes.data);
+
         const orders = Array.isArray(ordersRes.data) ? ordersRes.data : ordersRes.data?.data || [];
-        const categories = Array.isArray(categoryRes.data) ? categoryRes.data : categoryRes.data?.data || [];
-
-        const totalRevenue = orders
-          .filter((o: Order) => o.status === 'DELIVERED')
-          .reduce((sum: number, o: Order) => sum + o.total, 0);
-
-        setStats({
-          totalProducts: products.length,
-          totalOrders: orders.length,
-          totalCategories: categories.length,
-          totalRevenue,
-        });
         setRecentOrders(orders.slice(0, 5));
       } catch (error) {
         console.error('Gagal memuat data dashboard', error);
@@ -80,11 +72,39 @@ export default function AdminDashboard() {
     );
   }
 
+  if (!summary) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-gray-500">Gagal memuat ringkasan</div>
+      </div>
+    );
+  }
+
   const statCards = [
-    { title: 'Total Produk', value: stats.totalProducts, icon: Package, color: 'bg-blue-500' },
-    { title: 'Total Pesanan', value: stats.totalOrders, icon: ShoppingBag, color: 'bg-green-500' },
-    { title: 'Kategori', value: stats.totalCategories, icon: Tag, color: 'bg-purple-500' },
-    { title: 'Pendapatan', value: formatRupiah(stats.totalRevenue), icon: DollarSign, color: 'bg-orange-500' },
+    {
+      title: 'Total Pesanan',
+      value: summary.totalOrders,
+      icon: ShoppingBag,
+      color: 'bg-blue-500',
+    },
+    {
+      title: 'Pendapatan',
+      value: formatRupiah(summary.totalRevenue),
+      icon: DollarSign,
+      color: 'bg-green-500',
+    },
+    {
+      title: 'Pesanan Hari Ini',
+      value: summary.todayOrders,
+      icon: Calendar,
+      color: 'bg-orange-500',
+    },
+    {
+      title: 'Pendapatan Minggu Ini',
+      value: formatRupiah(summary.weeklyRevenue),
+      icon: TrendingUp,
+      color: 'bg-purple-500',
+    },
   ];
 
   return (
@@ -96,7 +116,10 @@ export default function AdminDashboard() {
         {statCards.map((card) => {
           const Icon = card.icon;
           return (
-            <div key={card.title} className="bg-white rounded-xl shadow-md p-5 flex items-center justify-between transition hover:shadow-lg">
+            <div
+              key={card.title}
+              className="bg-white rounded-xl shadow-md p-5 flex items-center justify-between transition hover:shadow-lg"
+            >
               <div>
                 <p className="text-sm text-gray-500 font-medium">{card.title}</p>
                 <p className="text-2xl font-bold text-gray-800 mt-1">{card.value}</p>
@@ -107,6 +130,46 @@ export default function AdminDashboard() {
             </div>
           );
         })}
+      </div>
+
+      {/* Top 5 Produk Terlaris */}
+      {summary.topProducts && summary.topProducts.length > 0 && (
+        <div className="bg-white rounded-xl shadow-md p-6 mb-8">
+          <h2 className="text-lg font-semibold text-gray-800 mb-4">Top 5 Produk Terlaris</h2>
+          <div className="space-y-3">
+            {summary.topProducts.map((product, idx) => (
+              <div key={product.id} className="flex items-center gap-4 p-3 border-b last:border-0">
+                <span className="text-lg font-bold text-gray-400 w-6">{idx + 1}</span>
+                <img
+                  src={product.image}
+                  alt={product.name}
+                  className="w-10 h-10 object-cover rounded-md"
+                />
+                <div className="flex-1">
+                  <p className="font-medium text-gray-800">{product.name}</p>
+                  <p className="text-sm text-gray-500">Terjual {product.totalSold} pcs</p>
+                </div>
+                <p className="font-bold text-orange-600">{formatRupiah(product.price)}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Perbandingan Pendapatan */}
+      <div className="bg-white rounded-xl shadow-md p-6 mb-8">
+        <h2 className="text-lg font-semibold text-gray-800 mb-4">Perbandingan Pendapatan</h2>
+        <div className="flex justify-between items-center gap-4">
+          <div className="text-center flex-1 bg-gray-50 p-4 rounded-xl">
+            <p className="text-sm text-gray-500">Minggu Ini</p>
+            <p className="text-xl font-bold text-gray-800">{formatRupiah(summary.weeklyRevenue)}</p>
+          </div>
+          <ArrowUp size={24} className="text-gray-400" />
+          <div className="text-center flex-1 bg-gray-50 p-4 rounded-xl">
+            <p className="text-sm text-gray-500">Bulan Ini</p>
+            <p className="text-xl font-bold text-gray-800">{formatRupiah(summary.monthlyRevenue)}</p>
+          </div>
+        </div>
       </div>
 
       {/* Pesanan Terbaru */}
@@ -135,15 +198,27 @@ export default function AdminDashboard() {
               ) : (
                 recentOrders.map((order) => (
                   <tr key={order.id} className="hover:bg-gray-50 transition">
-                    <td className="px-6 py-3 font-mono text-gray-700">#{order.id.slice(-8).toUpperCase()}</td>
-                    <td className="px-6 py-3 font-medium text-gray-800">{order.user?.name || 'Tamu'}</td>
-                    <td className="px-6 py-3 font-semibold text-gray-800">{formatRupiah(order.total)}</td>
+                    <td className="px-6 py-3 font-mono text-gray-700">
+                      #{order.id.slice(-8).toUpperCase()}
+                    </td>
+                    <td className="px-6 py-3 font-medium text-gray-800">
+                      {order.user?.name || 'Tamu'}
+                    </td>
+                    <td className="px-6 py-3 font-semibold text-gray-800">
+                      {formatRupiah(order.total)}
+                    </td>
                     <td className="px-6 py-3">
-                      <span className={`px-2 py-1 rounded-full text-xs font-semibold ${statusColors[order.status] || 'bg-gray-100 text-gray-800'}`}>
+                      <span
+                        className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                          statusColors[order.status] || 'bg-gray-100 text-gray-800'
+                        }`}
+                      >
                         {order.status}
                       </span>
                     </td>
-                    <td className="px-6 py-3 text-gray-500">{new Date(order.createdAt).toLocaleDateString('id-ID')}</td>
+                    <td className="px-6 py-3 text-gray-500">
+                      {new Date(order.createdAt).toLocaleDateString('id-ID')}
+                    </td>
                   </tr>
                 ))
               )}

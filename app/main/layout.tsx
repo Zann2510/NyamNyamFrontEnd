@@ -1,13 +1,12 @@
 import Navbar from '@/components/ui/Navbar';
-import PageWrapper from '@/components/providers/PageWrapper';
+import BottomNav from '@/components/ui/BottomNavbar';
 
 export default function MainLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen bg-gray-50">
+    <>
       <Navbar />
-      <PageWrapper>
-        {children}
-      </PageWrapper>
-    </div>
+      <main className="pb-20 md:pb-8">{children}</main>
+      <BottomNav />
+    </>
   );
 }

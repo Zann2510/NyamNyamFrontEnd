@@ -44,7 +44,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 },
                 success: {
                   iconTheme: {
-                    primary: '#f97316',
+                    primary: '#5cb85c',
                     secondary: '#fff',
                   },
                 },
