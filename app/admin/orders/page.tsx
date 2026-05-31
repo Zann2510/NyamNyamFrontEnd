@@ -98,7 +98,7 @@ export default function AdminOrders() {
             placeholder="Cari pesanan (ID, nama, alamat)..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="pl-9 pr-4 py-2 border border-gray-300 rounded-lg w-80 focus:ring-orange-500 focus:border-orange-500"
+            className="pl-9 pr-4 py-2 border border-gray-300 rounded-lg w-80 focus:ring-orange-500 focus:border-orange-500 text-gray-800"
           />
         </div>
       </div>
@@ -111,7 +111,7 @@ export default function AdminOrders() {
         <div className="space-y-4">
           {filteredOrders.map((order) => (
             <div key={order.id} className="bg-white rounded-xl shadow-md overflow-hidden">
-              <div className="px-6 py-4 border-b flex flex-wrap justify-between items-center gap-3 bg-gray-50">
+              <div className="px-6 py-4 border-b flex flex-wrap justify-between items-center gap-3 bg-gray-100">
                 <div>
                   <p className="font-mono text-sm text-gray-600"># {order.id.slice(-8).toUpperCase()}</p>
                   <p className="text-sm text-gray-500">{new Date(order.createdAt).toLocaleString('id-ID')}</p>
@@ -123,7 +123,7 @@ export default function AdminOrders() {
                   <select
                     value={order.status}
                     onChange={(e) => updateStatus(order.id, e.target.value)}
-                    className="border border-gray-300 rounded-lg p-1 text-sm bg-white focus:ring-orange-500"
+                    className="border border-gray-300 rounded-lg p-1 text-sm bg-white focus:ring-orange-500 text-gray-800"
                   >
                     {statusOptions.map((s) => (
                       <option key={s} value={s}>{s}</option>
@@ -140,16 +140,16 @@ export default function AdminOrders() {
 
               <div className="px-6 py-4 grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
                 <div>
-                  <p className="text-gray-500">Pelanggan</p>
-                  <p className="font-medium text-gray-800">{order.user?.name || 'Tidak diketahui'}</p>
-                  <p className="text-xs text-gray-400">{order.user?.email}</p>
+                  <p className="text-gray-600 font-medium">Pelanggan</p>
+                  <p className="font-semibold text-gray-800">{order.user?.name || 'Tidak diketahui'}</p>
+                  <p className="text-xs text-gray-500">{order.user?.email}</p>
                 </div>
                 <div>
-                  <p className="text-gray-500">Alamat Pengiriman</p>
+                  <p className="text-gray-600 font-medium">Alamat Pengiriman</p>
                   <p className="font-medium text-gray-800">{order.deliveryAddress}</p>
                 </div>
                 <div>
-                  <p className="text-gray-500">Pembayaran</p>
+                  <p className="text-gray-600 font-medium">Pembayaran</p>
                   <p className="font-medium text-gray-800">{order.paymentMethod}</p>
                   <p className="text-orange-600 font-bold mt-1">{formatRupiah(order.total)}</p>
                 </div>

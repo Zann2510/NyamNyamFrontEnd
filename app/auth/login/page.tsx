@@ -17,7 +17,7 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-orange-50 to-orange-100 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-linear-to-br from-orange-50 to-orange-100 p-4">
       <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-md">
         {/* Logo dan judul */}
         <div className="text-center mb-8">

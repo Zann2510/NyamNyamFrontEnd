@@ -1,55 +1,92 @@
-import Link from 'next/link';
-import { Star } from 'lucide-react';
+'use client';
+
+import { useRouter } from 'next/navigation';
+import { Star, Plus } from 'lucide-react';
 import { formatRupiah } from '@/lib/utils';
 import { Product } from '@/types';
+import { useCart } from '@/contexts/CartContext';
+import toast from 'react-hot-toast';
 
 interface ProductCardProps {
   product: Product;
-  horizontal?: boolean;
-  rating?: number; // opsional, karena backend tidak punya rating
+  rating?: number;
+  onOpenDetail?: () => void;
 }
 
-export default function ProductCard({ product, horizontal = false, rating = 4.8 }: ProductCardProps) {
-  if (horizontal) {
-    return (
-      <Link
-        href={`/products/${product.id}`}
-        className="flex bg-white rounded-xl shadow-sm p-3 gap-3 hover:shadow-md transition"
-      >
+/**
+ * ProductCard — dipakai di homepage & halaman produk.
+ * Navigasi ke detail produk menggunakan useRouter().push()
+ * bukan <Link href={`/.../${id}`}> untuk menghindari error
+ * "Dynamic href found in <Link>" di Next.js App Router.
+ */
+export default function ProductCard({
+  product,
+  rating = 4.8,
+  onOpenDetail,
+}: ProductCardProps) {
+  const router = useRouter();
+  const { addItem } = useCart();
+
+  const handleCardClick = () => {
+    if (onOpenDetail) {
+      onOpenDetail();
+    } else {
+      // Navigasi programatik — aman di App Router
+      router.push(`/main/products/${product.id}`);
+    }
+  };
+
+  const handleAddToCart = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    addItem(product, 1);
+    toast.success(`${product.name} ditambahkan ke keranjang`);
+  };
+
+  return (
+    <div
+      onClick={handleCardClick}
+      className="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow cursor-pointer group"
+    >
+      {/* Gambar */}
+      <div className="relative overflow-hidden">
         <img
           src={product.image}
           alt={product.name}
-          className="w-20 h-20 object-cover rounded-lg"
+          className="w-full h-44 object-cover group-hover:scale-105 transition-transform duration-300"
         />
-        <div className="flex-1">
-          <div className="flex items-center gap-1 text-sm text-yellow-500">
-            <Star className="w-4 h-4 fill-current" />
-            <span className="text-gray-600">{rating}</span>
-          </div>
-          <h3 className="font-semibold line-clamp-1">{product.name}</h3>
-          <p className="text-xs text-gray-500 line-clamp-2">{product.description}</p>
-          <p className="text-orange-600 font-bold mt-1">{formatRupiah(product.price)}</p>
+        <div className="absolute top-2 right-2 flex items-center gap-1 bg-white/90 backdrop-blur-sm px-2 py-0.5 rounded-full shadow-sm">
+          <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
+          <span className="text-xs font-bold text-gray-700">{rating}</span>
         </div>
-      </Link>
-    );
-  }
+      </div>
 
-  return (
-    <Link
-      href={`/main/products/${product.id}`}
-      className="bg-white rounded-xl shadow-sm overflow-hidden hover:shadow-md transition"
-    >
-      <img src={product.image} alt={product.name} className="w-full h-32 object-cover" />
-      <div className="p-2">
-        <div className="flex items-center gap-1 text-xs text-yellow-500">
-          <Star className="w-3 h-3 fill-current" />
-          <span>{rating}</span>
-        </div>
-        <h3 className="font-semibold text-sm line-clamp-1">{product.name}</h3>
-        <p className="text-orange-600 font-bold text-sm mt-1">
-          {formatRupiah(product.price)}
+      {/* Info */}
+      <div className="p-3">
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-orange-500">
+          {product.category?.name ?? 'Menu'}
+        </p>
+        <h3 className="font-bold text-gray-900 text-sm mt-0.5 line-clamp-1">
+          {product.name}
+        </h3>
+        <p className="text-xs text-gray-500 line-clamp-2 mt-0.5 leading-relaxed">
+          {product.description}
         </p>
       </div>
-    </Link>
+
+      {/* Harga + Tombol */}
+      <div className="px-3 pb-3 flex items-center justify-between">
+        <span className="font-bold text-gray-900 text-sm">
+          {formatRupiah(product.price)}
+        </span>
+        <button
+          onClick={handleAddToCart}
+          disabled={product.stock === 0}
+          className="w-8 h-8 bg-orange-500 hover:bg-orange-600 disabled:bg-gray-300 text-white rounded-full flex items-center justify-center transition-colors shadow-sm"
+          aria-label={`Tambah ${product.name} ke keranjang`}
+        >
+          <Plus size={16} />
+        </button>
+      </div>
+    </div>
   );
 }
