@@ -39,7 +39,7 @@ export default function LoginPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="pl-10 text-gray-800 w-full border border-gray-800 rounded-lg p-2 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition"
-                placeholder="admin@kuliner.com"
+                placeholder="user@gmail.com"
               />
             </div>
           </div>
@@ -86,12 +86,6 @@ export default function LoginPage() {
             Daftar Sekarang
           </Link>
         </p>
-
-        {/* Demo credentials (untuk memudahkan penilai) */}
-        <div className="mt-6 p-3 bg-gray-50 rounded-lg text-xs text-gray-500 text-center">
-          <p>Demo Akun Admin: admin@kuliner.com / admin123</p>
-          <p>Demo Akun Customer: customer@example.com / user123</p>
-        </div>
       </div>
     </div>
   );
