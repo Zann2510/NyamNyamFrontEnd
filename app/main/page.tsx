@@ -10,14 +10,12 @@ import toast from 'react-hot-toast';
 import { Star, Plus, Flame, TrendingUp } from 'lucide-react';
 import ProductDetailModal from '@/components/ui/Productdetailmodal';
 
-// ─── Promo statis ──────────────────────────────────────────────
 const PROMO_CARDS = [
-  { title: 'Diskon 50%', subtitle: 'Untuk pengguna baru', code: 'BARU50', bg: 'bg-blue-500', circle: 'bg-blue-400' },
-  { title: 'Gratis Ongkir', subtitle: 'Minimal belanja 50rb', code: 'ONGKIR0', bg: 'bg-purple-500', circle: 'bg-purple-400' },
-  { title: 'Buy 1 Get 1', subtitle: 'Khusus minuman kopi', code: 'KOPI11', bg: 'bg-emerald-500', circle: 'bg-emerald-400' },
+  { title: 'Diskon 50%', subtitle: 'beli setengah harga doang', code: 'UNTUK PENGGUNA BARU', bg: 'bg-blue-500', circle: 'bg-blue-400' },
+  { title: 'Gratis Ongkir', subtitle: 'Minimal belanja 50rb', code: 'ONGKIR Rp.0', bg: 'bg-purple-500', circle: 'bg-purple-400' },
+  { title: 'Buy 1 Get 1', subtitle: 'Khusus minuman kopi', code: 'DAPET 2', bg: 'bg-emerald-500', circle: 'bg-emerald-400' },
 ];
 
-// ─── Rating statis konsisten per produk ───────────────────────
 const ratingCache: Record<string, number> = {};
 const getStaticRating = (id: string) => {
   if (!ratingCache[id]) {
@@ -37,7 +35,6 @@ const normProductArray = (res: any): Product[] => {
   return [];
 };
 
-// ─── Tipe untuk top produk dari summary ───────────────────────
 interface TopProduct {
   id: string;
   name: string;
@@ -61,7 +58,6 @@ export default function HomePage() {
   const [loadingFeatured, setLoadingFeatured] = useState(true);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
-  // ── Fetch semua produk (untuk "Menu Terfavorit" fallback) ────
   useEffect(() => {
     api.get('/products?limit=8')
       .then(res => {
@@ -71,7 +67,6 @@ export default function HomePage() {
       .catch(err => console.error('Fetch products error:', err));
   }, []);
 
-  // ── Fetch Menu Terfavorit (berdasarkan penjualan terbanyak) ──
   useEffect(() => {
     const fetchFeatured = async () => {
       setLoadingFeatured(true);
@@ -110,12 +105,9 @@ export default function HomePage() {
           return;
         }
       } catch {
-        // summary gagal atau belum ada data penjualan — lanjut ke fallback
       }
 
       // Strategi 2 (fallback): 4 produk terbaru
-      // Tunggu allProducts selesai diambil (di-fetch paralel)
-      // Kalau belum ada, fetch ulang
       try {
         const res = await api.get('/products?limit=4&sortBy=createdAt&sortOrder=desc');
         const list = normProductArray(res);
@@ -125,7 +117,6 @@ export default function HomePage() {
           return;
         }
       } catch {
-        // do nothing
       }
 
       // Strategi 3: pakai allProducts yang sudah ada
@@ -133,7 +124,6 @@ export default function HomePage() {
       setFeaturedSource('latest');
     };
 
-    // Jalankan setelah sedikit delay agar allProducts sempat ter-set
     const timer = setTimeout(() => {
       fetchFeatured().finally(() => setLoadingFeatured(false));
     }, 100);
@@ -171,9 +161,7 @@ export default function HomePage() {
             </p>
             <button
               onClick={() => router.push('/main/products')}
-              className="mt-6 inline-block bg-white text-orange-500 font-bold px-6 py-3
-                         rounded-full text-sm hover:bg-orange-50 transition-colors shadow-sm"
-            >
+              className="mt-6 inline-block bg-white text-orange-500 font-bold px-6 py-3 rounded-full text-sm hover:bg-orange-50 transition-colors shadow-sm">
               Lihat Menu Lengkap
             </button>
           </div>
@@ -186,9 +174,7 @@ export default function HomePage() {
             {PROMO_CARDS.map((promo) => (
               <div
                 key={promo.code}
-                className={`relative overflow-hidden rounded-2xl ${promo.bg} p-5 text-white
-                            shadow-sm cursor-pointer hover:shadow-md transition-shadow`}
-              >
+                className={`relative overflow-hidden rounded-2xl ${promo.bg} p-5 text-white shadow-sm cursor-pointer hover:shadow-md transition-shadow`}>
                 <div className={`absolute right-4 bottom-4 w-24 h-24 ${promo.circle} rounded-full opacity-40`} />
                 <div className={`absolute right-12 top-2 w-12 h-12 ${promo.circle} rounded-full opacity-30`} />
                 <div className="relative z-10">
@@ -243,8 +229,8 @@ export default function HomePage() {
                     <div className="h-4 bg-gray-100 rounded w-3/4" />
                     <div className="h-3 bg-gray-100 rounded w-full" />
                     <div className="flex justify-between mt-3">
-                      <div className="h-4 bg-gray-100 rounded w-1/3" />
-                      <div className="w-8 h-8 bg-gray-100 rounded-full" />
+                    <div className="h-4 bg-gray-100 rounded w-1/3" />
+                    <div className="w-8 h-8 bg-gray-100 rounded-full" />
                     </div>
                   </div>
                 </div>
