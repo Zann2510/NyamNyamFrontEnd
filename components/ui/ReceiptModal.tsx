@@ -75,13 +75,11 @@ export default function ReceiptModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center
-                 bg-black/50 backdrop-blur-sm p-0 sm:p-4"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm p-0 sm:p-4"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div
-        className="bg-white w-full sm:max-w-4xl sm:rounded-2xl rounded-t-2xl shadow-2xl
-                   flex flex-col max-h-[95vh] sm:max-h-[90vh] overflow-hidden"
+        className="bg-white w-full sm:max-w-4xl sm:rounded-2xl rounded-t-2xl shadow-2xl flex flex-col max-h-[95vh] sm:max-h-[90vh] overflow-hidden"
         style={{ animation: 'slideUp 280ms cubic-bezier(0.32,0.72,0,1)' }}
       >
         {/* ── Header ──────────────────────────────────────── */}
@@ -135,8 +133,7 @@ export default function ReceiptModal({
               <div className="lg:w-80 flex-shrink-0 p-5 space-y-5">
                 {/* Status badge */}
                 {status && (
-                  <div className={`inline-flex items-center gap-1.5 text-xs font-semibold
-                                  px-2.5 py-1 rounded-full ${status.color}`}>
+                  <div className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full ${status.color}`}>
                     {status.icon}
                     {status.label}
                   </div>
@@ -248,8 +245,7 @@ export default function ReceiptModal({
 
         {/* ── Footer: tombol aksi (hanya desktop) ─────────── */}
         {!loading && !error && receiptInfo && (
-          <div className="hidden lg:flex items-center justify-end gap-2 px-5 py-4
-                          border-t border-gray-100 flex-shrink-0">
+          <div className="hidden lg:flex items-center justify-end gap-2 px-5 py-4 border-t border-gray-100 flex-shrink-0">
             <ActionButtons onDownload={onDownload} onPrint={handlePrint} hasPdf={!!pdfUrl} />
           </div>
         )}
@@ -279,8 +275,7 @@ function ActionButtons({
       {hasPdf && (
         <button
           onClick={onPrint}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-gray-200
-                     text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-gray-200 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
         >
           <Printer size={15} />
           Print
@@ -289,9 +284,7 @@ function ActionButtons({
       <button
         onClick={onDownload}
         disabled={!hasPdf}
-        className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-orange-500
-                   hover:bg-orange-600 disabled:bg-gray-200 text-white text-sm
-                   font-semibold transition-colors shadow-sm"
+        className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-orange-500 hover:bg-orange-600 disabled:bg-gray-200 text-white text-sm font-semibold transition-colors shadow-sm"
       >
         <Download size={15} />
         Unduh PDF
