@@ -18,11 +18,13 @@ import {
   ShoppingBag,
   CreditCard,
   RefreshCcw,
+  Receipt,   
+  Download,  
 } from 'lucide-react';
+import { useReceipt } from '@/hooks/useReceipt';  
+import ReceiptModal from '@/components/ui/ReceiptModal';
+import toast from 'react-hot-toast';
 
-// ─── Status Config — LENGKAP sesuai Prisma OrderStatus enum ───
-// Prisma enum: PENDING, WAITING_PAYMENT, CONFIRMED, PREPARING,
-//              DELIVERING, DELIVERED, CANCELLED
 const STATUS_CONFIG: Record<
   string,
   {
@@ -92,7 +94,6 @@ const STATUS_CONFIG: Record<
   },
 };
 
-// Fallback untuk status tak dikenal — tidak crash
 const DEFAULT_STATUS = {
   label: 'Status Tidak Dikenal',
   color: 'text-gray-600',
@@ -105,10 +106,8 @@ const DEFAULT_STATUS = {
 const getStatusConfig = (status: string) =>
   STATUS_CONFIG[status] ?? DEFAULT_STATUS;
 
-// Step yang ditampilkan di progress bar
 const PROGRESS_STEPS = ['CONFIRMED', 'PREPARING', 'DELIVERING', 'DELIVERED'];
 
-// Status yang dianggap "aktif / dalam proses"
 const ACTIVE_STATUSES = [
   'PENDING',
   'WAITING_PAYMENT',
@@ -117,7 +116,9 @@ const ACTIVE_STATUSES = [
   'DELIVERING',
 ];
 
-// Tab filter
+// ← TAMBAH: status yang boleh lihat struk
+const RECEIPT_ELIGIBLE = ['CONFIRMED', 'PREPARING', 'DELIVERING', 'DELIVERED'];
+
 const FILTER_TABS = [
   { key: 'all', label: 'Semua' },
   { key: 'PENDING', label: 'Menunggu' },
@@ -129,7 +130,6 @@ const FILTER_TABS = [
   { key: 'CANCELLED', label: 'Dibatalkan' },
 ];
 
-// Normalisasi response array
 const normArr = (res: any): any[] => {
   const d = res.data?.data ?? res.data;
   return Array.isArray(d) ? d : Array.isArray(d?.data) ? d.data : [];
@@ -143,10 +143,23 @@ export default function OrdersPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [filter, setFilter] = useState<string>('all');
 
+  // ── TAMBAH: receipt state ──────────────────────────────────
+  const [modalOpen, setModalOpen] = useState(false);
+  const [activeOrderId, setActiveOrderId] = useState<string | null>(null);
+
+  const {
+    receiptInfo,
+    pdfUrl,
+    loading: receiptLoading,
+    error: receiptError,
+    fetchReceipt,
+    downloadPdf,
+    clearReceipt,
+  } = useReceipt();
+  // ─────────────────────────────────────────────────────────────
+
   const fetchOrders = useCallback(async (showRefreshing = false) => {
     if (showRefreshing) setRefreshing(true);
-
-    // Coba beberapa kemungkinan endpoint
     const endpoints = ['/orders/me', '/main/orders/me', '/orders'];
     for (const endpoint of endpoints) {
       try {
@@ -166,7 +179,41 @@ export default function OrdersPage() {
     fetchOrders().finally(() => setLoading(false));
   }, [fetchOrders]);
 
-  // Hitung tab yang aktif saja (sembunyikan tab yang tidak ada datanya)
+  // ── TAMBAH: receipt handlers ───────────────────────────────
+  const handleOpenReceipt = async (orderId: string) => {
+    setActiveOrderId(orderId);
+    setModalOpen(true);
+    await fetchReceipt(orderId);
+  };
+
+  const handleCloseModal = () => {
+    setModalOpen(false);
+    setActiveOrderId(null);
+    clearReceipt();
+  };
+
+  const handleDownload = async () => {
+    if (!activeOrderId) return;
+    try {
+      await downloadPdf(activeOrderId, receiptInfo?.receiptNumber);
+      toast.success('Struk berhasil diunduh');
+    } catch (err: any) {
+      toast.error(err.message ?? 'Gagal mengunduh struk');
+    }
+  };
+
+  const handleDirectDownload = async (orderId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const toastId = toast.loading('Mengunduh struk...');
+    try {
+      await downloadPdf(orderId);
+      toast.success('Struk berhasil diunduh', { id: toastId });
+    } catch (err: any) {
+      toast.error(err.message ?? 'Gagal mengunduh', { id: toastId });
+    }
+  };
+  // ─────────────────────────────────────────────────────────────
+
   const tabsWithCount = FILTER_TABS.map((tab) => ({
     ...tab,
     count:
@@ -182,7 +229,6 @@ export default function OrdersPage() {
 
   const activeOrders = orders.filter((o) => ACTIVE_STATUSES.includes(o.status));
 
-  // ── Loading skeleton ─────────────────────────────────────
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50">
@@ -215,7 +261,6 @@ export default function OrdersPage() {
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6">
 
-        {/* ── Header ──────────────────────────────────────── */}
         <div className="flex items-start justify-between mb-5">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Pesanan Saya</h1>
@@ -234,7 +279,6 @@ export default function OrdersPage() {
           </button>
         </div>
 
-        {/* ── Banner pesanan aktif ─────────────────────────── */}
         {activeOrders.length > 0 && (
           <div className="mb-5 bg-orange-500 rounded-2xl p-4 text-white flex items-center gap-3 shadow-md">
             <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center flex-shrink-0">
@@ -260,7 +304,6 @@ export default function OrdersPage() {
           </div>
         )}
 
-        {/* ── Filter tabs (scroll horizontal di mobile) ────── */}
         <div className="flex gap-2 mb-5 overflow-x-auto pb-1 -mx-1 px-1">
           {tabsWithCount.map((tab) => (
             <button
@@ -287,7 +330,6 @@ export default function OrdersPage() {
           ))}
         </div>
 
-        {/* ── Empty state ──────────────────────────────────── */}
         {filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-center">
             <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mb-4">
@@ -317,28 +359,48 @@ export default function OrdersPage() {
                 onToggle={() =>
                   setExpandedId(expandedId === order.id ? null : order.id)
                 }
+                // ← TAMBAH: prop baru untuk receipt
+                canGetReceipt={RECEIPT_ELIGIBLE.includes(order.status)}
+                onOpenReceipt={() => handleOpenReceipt(order.id)}
+                onDirectDownload={(e) => handleDirectDownload(order.id, e)}
               />
             ))}
           </div>
         )}
       </div>
+
+      {/* ── TAMBAH: Receipt Modal ──────────────────────────── */}
+      <ReceiptModal
+        isOpen={modalOpen}
+        onClose={handleCloseModal}
+        loading={receiptLoading}
+        error={receiptError}
+        receiptInfo={receiptInfo}
+        pdfUrl={pdfUrl}
+        onDownload={handleDownload}
+      />
     </div>
   );
 }
 
 // ─────────────────────────────────────────────────────────────
-// OrderCard
+// OrderCard — tambah 3 prop baru, sisanya tidak berubah
 // ─────────────────────────────────────────────────────────────
 function OrderCard({
   order,
   expanded,
   onToggle,
+  canGetReceipt,       // ← TAMBAH
+  onOpenReceipt,       // ← TAMBAH
+  onDirectDownload,    // ← TAMBAH
 }: {
   order: Order;
   expanded: boolean;
   onToggle: () => void;
+  canGetReceipt: boolean;           // ← TAMBAH
+  onOpenReceipt: () => void;        // ← TAMBAH
+  onDirectDownload: (e: React.MouseEvent) => void; // ← TAMBAH
 }) {
-  // Gunakan getStatusConfig agar tidak crash untuk status tak dikenal
   const config = getStatusConfig(order.status);
   const Icon = config.icon;
   const isActive = ACTIVE_STATUSES.includes(order.status);
@@ -346,10 +408,8 @@ function OrderCard({
 
   return (
     <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
-      {/* ── Header kartu ──────────────────────────────── */}
       <div className="p-4">
         <div className="flex items-start justify-between gap-3">
-          {/* Kiri: icon + status */}
           <div className="flex items-center gap-3 flex-1 min-w-0">
             <div
               className={`w-9 h-9 rounded-full flex items-center justify-center
@@ -367,7 +427,6 @@ function OrderCard({
             </div>
           </div>
 
-          {/* Kanan: total + tanggal */}
           <div className="text-right flex-shrink-0">
             <p className="font-bold text-gray-900 text-sm">
               {formatRupiah(Number(order.total) || 0)}
@@ -382,7 +441,6 @@ function OrderCard({
           </div>
         </div>
 
-        {/* Progress bar — hanya untuk pesanan aktif non-cancelled */}
         {isActive && !isCancelled && (
           <div className="mt-3 pt-3 border-t border-gray-50">
             <div className="flex items-center gap-1">
@@ -419,7 +477,6 @@ function OrderCard({
           </div>
         )}
 
-        {/* Preview items (collapsed) */}
         {!expanded && (
           <div className="mt-3 flex items-center gap-2">
             <div className="flex -space-x-2">
@@ -452,7 +509,6 @@ function OrderCard({
         )}
       </div>
 
-      {/* ── Toggle button ─────────────────────────────── */}
       <button
         onClick={onToggle}
         className="w-full px-4 py-2 flex items-center justify-center gap-1
@@ -466,10 +522,8 @@ function OrderCard({
         )}
       </button>
 
-      {/* ── Expanded detail ───────────────────────────── */}
       {expanded && (
         <div className="px-4 pb-4 space-y-3 border-t border-gray-50">
-          {/* Item list */}
           <div className="space-y-2 pt-3">
             {(order.items ?? []).map((item: any) => (
               <div key={item.id} className="flex items-center gap-3">
@@ -501,7 +555,6 @@ function OrderCard({
             ))}
           </div>
 
-          {/* Info pengiriman + pembayaran */}
           <div className="pt-3 border-t border-gray-50 grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs text-gray-500">
             <div>
               <p className="font-semibold text-gray-700 mb-0.5">Alamat Pengiriman</p>
@@ -513,13 +566,40 @@ function OrderCard({
             </div>
           </div>
 
-          {/* Total */}
-          <div className="pt-3 border-t border-gray-50 flex justify-between items-center">
+          {/* ── TAMBAH: baris total + tombol struk ────────── */}
+          <div className="pt-3 border-t border-gray-50 flex items-center justify-between">
             <span className="text-sm font-bold text-gray-800">Total Dibayar</span>
-            <span className="font-bold text-orange-600">
-              {formatRupiah(Number(order.total) || 0)}
-            </span>
+            <div className="flex items-center gap-3">
+              <span className="font-bold text-orange-600">
+                {formatRupiah(Number(order.total) || 0)}
+              </span>
+
+              {/* Tombol struk — hanya jika eligible */}
+              {canGetReceipt && (
+                <div className="flex items-center gap-1 border-l border-gray-100 pl-3">
+                  <button
+                    onClick={onOpenReceipt}
+                    className="flex items-center gap-1.5 text-xs font-semibold
+                               text-orange-500 hover:text-orange-700 transition-colors
+                               px-2 py-1 rounded-lg hover:bg-orange-50"
+                  >
+                    <Receipt size={13} />
+                    Struk
+                  </button>
+                  <button
+                    onClick={onDirectDownload}
+                    className="p-1 text-gray-400 hover:text-gray-600
+                               hover:bg-gray-100 rounded-lg transition-colors"
+                    aria-label="Unduh struk"
+                    title="Unduh struk"
+                  >
+                    <Download size={13} />
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
+          {/* ─────────────────────────────────────────────── */}
         </div>
       )}
     </div>

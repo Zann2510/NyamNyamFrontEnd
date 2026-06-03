@@ -25,13 +25,11 @@ const getStaticRating = (id: string) => {
   return ratingCache[id];
 };
 
-// ─── Normalisasi response TransformInterceptor ────────────────
-// Backend: { success, statusCode, data: { data: [...], meta } }
-// atau   : { success, statusCode, data: [...] }
+
 const normProductArray = (res: any): Product[] => {
-  const outer = res.data?.data ?? res.data;          // unwrap TransformInterceptor
-  if (Array.isArray(outer)) return outer;            // { data: [...] }
-  if (Array.isArray(outer?.data)) return outer.data; // { data: { data: [...], meta } }
+  const outer = res.data?.data ?? res.data;          
+  if (Array.isArray(outer)) return outer;            
+  if (Array.isArray(outer?.data)) return outer.data;
   return [];
 };
 

@@ -59,6 +59,8 @@ export default function ProductsPage() {
     fetchAll();
   }, []);
 
+  
+
   // ── Filter produk ──────────────────────────────────────────
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();

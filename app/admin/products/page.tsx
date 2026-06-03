@@ -6,6 +6,8 @@ import toast from 'react-hot-toast';
 import { formatRupiah } from '@/lib/utils';
 import { Plus, Edit, Trash2, Search } from 'lucide-react';
 import ImageUploader from '@/components/ui/ImageUploader';
+import ProductNameInput from '@/components/ui/ProductNameInput';      // <-- import
+import { useProductNameCheck } from '@/hooks/useProductNameCheck';   // <-- import
 
 interface Category {
   id: string;
@@ -39,6 +41,9 @@ export default function AdminProducts() {
   });
   const [loading, setLoading] = useState(false);
 
+  // === Cek ketersediaan nama produk (real-time) ===
+  const nameCheck = useProductNameCheck(form.name, editingProduct?.id);
+
   const extractDataArray = (response: any): any[] => {
     if (Array.isArray(response)) return response;
     if (response?.data && Array.isArray(response.data)) return response.data;
@@ -67,6 +72,11 @@ export default function AdminProducts() {
     e.preventDefault();
     if (!form.image) {
       toast.error('Gambar produk wajib diupload');
+      return;
+    }
+    // Cegah submit jika nama sedang dicek atau sudah dipakai
+    if (nameCheck.status === 'checking' || nameCheck.status === 'taken') {
+      toast.error('Nama produk tidak valid atau sudah digunakan');
       return;
     }
     setLoading(true);
@@ -202,23 +212,48 @@ export default function AdminProducts() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-xl max-w-md w-full max-h-[90vh] overflow-y-auto shadow-xl">
             <div className="p-6">
-              <h2 className="text-xl font-bold text-gray-800 mb-4">{editingProduct ? 'Edit Produk' : 'Tambah Produk'}</h2>
+              <h2 className="text-xl font-bold text-gray-800 mb-4">
+                {editingProduct ? 'Edit Produk' : 'Tambah Produk'}
+              </h2>
               <form onSubmit={handleSubmit} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-800 mb-1">Nama Produk</label>
-                  <input type="text" required className="w-full border text-gray-800 border-gray-300 rounded-lg p-2 focus:ring-orange-500 focus:border-orange-500" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-                </div>
+                {/* Ganti input nama dengan ProductNameInput */}
+                <ProductNameInput
+                  value={form.name}
+                  onChange={(newName) => setForm({ ...form, name: newName })}
+                  editingId={editingProduct?.id}
+                  required
+                />
+
                 <div>
                   <label className="block text-sm font-medium text-gray-800 mb-1">Deskripsi</label>
-                  <textarea rows={3} className="w-full border text-gray-800 border-gray-300 rounded-lg p-2" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
+                  <textarea
+                    rows={3}
+                    className="w-full border text-gray-800 border-gray-300 rounded-lg p-2"
+                    value={form.description}
+                    onChange={(e) => setForm({ ...form, description: e.target.value })}
+                  />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-800 mb-1">Harga (Rp)</label>
-                  <input type="number" required min={0} className="w-full border text-gray-800 border-gray-300 rounded-lg p-2" value={form.price} onChange={(e) => setForm({ ...form, price: Number(e.target.value) })} />
+                  <input
+                    type="number"
+                    required
+                    min={0}
+                    className="w-full border text-gray-800 border-gray-300 rounded-lg p-2"
+                    value={form.price}
+                    onChange={(e) => setForm({ ...form, price: Number(e.target.value) })}
+                  />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-800 mb-1">Stok</label>
-                  <input type="number" required min={0} className="w-full border text-gray-800 border-gray-300 rounded-lg p-2" value={form.stock} onChange={(e) => setForm({ ...form, stock: Number(e.target.value) })} />
+                  <input
+                    type="number"
+                    required
+                    min={0}
+                    className="w-full border text-gray-800 border-gray-300 rounded-lg p-2"
+                    value={form.stock}
+                    onChange={(e) => setForm({ ...form, stock: Number(e.target.value) })}
+                  />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-800 mb-1">Gambar Produk</label>
@@ -230,7 +265,12 @@ export default function AdminProducts() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-800 mb-1">Kategori</label>
-                  <select required className="w-full border text-gray-800 border-gray-300 rounded-lg p-2" value={form.categoryId} onChange={(e) => setForm({ ...form, categoryId: e.target.value })}>
+                  <select
+                    required
+                    className="w-full border text-gray-800 border-gray-300 rounded-lg p-2"
+                    value={form.categoryId}
+                    onChange={(e) => setForm({ ...form, categoryId: e.target.value })}
+                  >
                     <option value="">Pilih Kategori</option>
                     {category.map((cat) => (
                       <option key={cat.id} value={cat.id}>{cat.name}</option>
@@ -238,10 +278,18 @@ export default function AdminProducts() {
                   </select>
                 </div>
                 <div className="flex gap-3 pt-4">
-                  <button type="submit" disabled={loading} className="flex-1 bg-orange-500 hover:bg-orange-600 text-white py-2 rounded-lg font-semibold transition disabled:opacity-50">
+                  <button
+                    type="submit"
+                    disabled={loading || nameCheck.status === 'checking' || nameCheck.status === 'taken'}
+                    className="flex-1 bg-orange-500 hover:bg-orange-600 text-white py-2 rounded-lg font-semibold transition disabled:opacity-50"
+                  >
                     {loading ? 'Menyimpan...' : 'Simpan'}
                   </button>
-                  <button type="button" onClick={() => setModalOpen(false)} className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 py-2 rounded-lg transition">
+                  <button
+                    type="button"
+                    onClick={() => setModalOpen(false)}
+                    className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 py-2 rounded-lg transition"
+                  >
                     Batal
                   </button>
                 </div>
